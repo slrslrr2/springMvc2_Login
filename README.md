@@ -271,3 +271,86 @@ Member member = (Member) session.getAttribute(SessionConst.LOGIN_MEMBER);
    ===> @SessionAttribute(name = SessionConst.LOGIN_MEMBER, required = false) Member member
 ```
 
+------------------
+
+세션
+### 로그인 처리 - 필터, 인터셉터
+
+대부분의 Controller 로직에는 공통으로 **로그인 여부**를 체크해야한다.<br> 이때 사용되는것이 바로 필터이다.
+
+필터는 Servlet에서 제공해주고, Interceptor는 Spring에서 제공해준다.<br>또한, HttpServletRequest를 제공해준다
+
+우선 필터부터 알아보자,
+
+## 1. 필터
+
+**필터 흐름**
+
+```mermaid
+graph LR
+HTTP요청-->WAS-->필터-->서블릿-->핸들러
+```
+
+필터를 적용하면 서블릿 이전에 필터가 먼저 호출된다.
+
+만약 Filter에 로그인 체크하는 기능이 있다면, <br>로그인 하지 않은 사용자의 경우 필터까지만 호출되고 서블릿을통해 해당Controller로 진입 못하도록 막을 수 있다.
+
+
+
+**필터 인터페이스**
+
+```java
+public interface Filter {
+  public default void init(FilterConfig filterConfig) throws ServletException {}
+
+  public void doFilter(ServletRequest request, ServletResponse response,
+                       FilterChain chain) throws IOException, ServletException;
+
+  public default void destroy() {}
+}
+```
+
+- Init() : 필터 **초기화 메서드**로, **서블릿 컨테이너가 생성**될 때 **호출**된다.
+- doFilter() : **고객의 요청이 들어올 때마다 호출, 필터의 로직을 구현**해야한다.
+- destroy() : **필터 종료 메서드**로, **서블릿컨테이너가 종료**될 때 호출된다.
+
+> 필터인터페이스를 구현하여 등록하면, 스프링컨테이너에서 **싱글톤 객체**로 생성하고 관리한다.
+
+
+
+![image-20220424010530811](/Users/geumbit/Library/Application Support/typora-user-images/image-20220424010530811.png)
+
+- WebConfig에서 FilterRegistrationBean을 통해 LoginFilter, LoginCheckFilter를 싱글톤으로 스프링컨테이너에 FilterBean으로 등록해놓았다.
+
+- LogFilter가 setOrder(1)로 지정하였기에 먼저 실행이되고
+
+  - Chain.doFilter를 통하여 다음 Filter인 LoginCheckFilter가 실행된다
+
+    - session이 없는 경우 httpResponse.sendRedirect("/login**?redirectURL="+requestURI**)<br>?redirectURL=requestURL을 통해 해당 로그인 후 처음 요청했던 URL로 이동시켜준다.
+
+      - ```java
+        @PostMapping("/login")
+        public String login4(@Valid @ModelAttribute LoginForm loginForm, BindingResult bindingResult,
+                             @RequestParam(defaultValue= "/") String redirectURL
+                             , HttpServletRequest request){
+           .... 생략 ....
+        
+          return "redirect:"+redirectURL;
+        }
+        ```
+
+      - 
+
+    - ```java
+      /**
+      * 화이트 리스트의 경우 인증 체크X
+      * 아래 매치를 통해 URL 체크를 하여 chain.doFilter를 실행한다.
+      * 아래 URL들은 login을 체크할 필요가 없다.
+      */
+      private static final String[] whitelist = {"/", "/members/add", "/login", "/logout", "/css/*"};
+      
+      private boolean isLoginCheckPath(String requestURI){
+      	return !PatternMatchUtils.simpleMatch(whitelist, requestURI);
+      }
+      ```
+
