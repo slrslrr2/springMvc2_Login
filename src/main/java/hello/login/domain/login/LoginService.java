@@ -17,6 +17,7 @@ public class LoginService {
         return memberRepository.findByLoginId(loginId)
                 .filter(m -> m.getPassword().equals(password))
                 .orElse(null);
+
         /**
         Optional<Member> findMemberOptional = memberRepository.findByLoginId(loginId);
         Member member = findMemberOptional.get();
