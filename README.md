@@ -318,7 +318,8 @@ public interface Filter {
 
 
 
-![image-20220424010530811](/Users/geumbit/Library/Application Support/typora-user-images/image-20220424010530811.png)
+<img width="1642" alt="image-20220424010530811" src="https://user-images.githubusercontent.com/58017318/164914886-f0e7965a-9aaa-4c93-ad3e-8eef11fa356b.png">
+
 
 - WebConfig에서 FilterRegistrationBean을 통해 LoginFilter, LoginCheckFilter를 싱글톤으로 스프링컨테이너에 FilterBean으로 등록해놓았다.
 
