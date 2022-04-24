@@ -355,3 +355,171 @@ public interface Filter {
       }
       ```
 
+
+-------
+
+## 2. 인터셉터
+
+**스프링 인터셉터 흐름**
+
+```mermaid
+graph LR
+HTTP요청-->WAS-->*필터*-->서블릿-->*인터셉터*-->핸들러
+```
+
+- 필터는 Servlet에서 제공해주기에 DispatcherServlet이전에 실행되지만,<br>인터셉터의 경우 SpringMVC에서 제공해주기때문에 DispatcherServlet실행 후 실행된다.
+
+- 인터셉터 역시 Chain형식으로 실행할 수 있기에Filter처럼 Log기능을 넣고, 로그인체크를 할 수 있다.
+
+<br>
+
+**스프링 인터셉터 인터페이스**
+
+```java
+public interface HandlerInterceptor {
+  // boolean return
+  default boolean preHandle(HttpServletRequest request, HttpServletResponse response, 															Object handler)
+    throws Exception {
+    return true;
+  }
+ 
+  // Parameter : @Nullable ModelAndView modelAndView
+	default void postHandle(HttpServletRequest request, HttpServletResponse response, 															Object handler, @Nullable ModelAndView modelAndView) 
+    throws Exception {}
+  
+  // Parameter : @Nullable Exception ex
+  default void afterCompletion(HttpServletRequest request, HttpServletResponse response, 													Object handler, @Nullable Exception ex) throws Exception {}
+}
+```
+
+- preHandle : handlerAdaptor 이전에 호출되어, boolean을 return해주기때문에<br> true : handlerAdaptor호출O <br>false : handlerAdaptor호출X
+- postHandle : handlerAdaptor이후 controller까지 호출되고 나서 실행<br> Controller에 Exception이 터지면 실행하지않는다
+- afterCompletion : handlerAdaptor, controller, view까지 렌더링되고 나서 실행된다.<br>Parameter로 Exception을 받아들이기에 controller에서 오류가 터져도 실행이 되고 어떤오류가 났는지 log를 찍을 수 있다.
+
+<img width="542" alt="image-20220424111242496" src="https://user-images.githubusercontent.com/58017318/164966567-7c63e808-f792-47d8-92d9-217ab7addb60.png">
+
+
+
+
+- 스프링 controller에서 Exception발생 시 **postHandler실행X** **afterCompletion 실행O**
+
+<img width="540" alt="image-20220424111254912" src="https://user-images.githubusercontent.com/58017318/164966568-adeedd62-3359-4b69-b403-d5274b39e621.png">
+
+
+우선, Filter가 먼저 실행이 되고 Interceptor가 실행되는지 확인해보자
+
+<img width="800" alt="image-20220424115223276" src="https://user-images.githubusercontent.com/58017318/164966569-447817a4-9070-46cd-b577-7dadb4eace37.png">
+
+<img width="1631" alt="image-20220424115858918" src="https://user-images.githubusercontent.com/58017318/164966572-031a7615-046b-488b-af5a-8513c91f6ae3.png">
+
+- LogFilter가 먼저 실행되고
+
+  - 그 안에 loginCheckFilter
+    - 그 안에 Interceptor가 실행된다.
+
+  
+
+<img width="1658" alt="image-20220424130832690" src="https://user-images.githubusercontent.com/58017318/164966576-10236df3-2031-49d4-b299-46b26dbadc43.png">
+
+- 재미있는 점은 model에 setAttribute한 내용들도 postHandler에서 확인 가능하다
+  - preHandle
+    - boolean으로 다음 controller 로직 실행여부를 결정하고
+    - handle로 어떤 Controller의 어떤 method를 호출하였는지 확인도 가능하다.
+      - handle 찍어보면  hello.login.web.item.ItemController#items(Model)
+  - postHandle
+    - controller Exception 터졌을 경우 실행X
+    - ModelAndView return 해주는데 setAttribute한 내용들도 표시해준다.
+      - [ModelAndView <br>.       [. view="items/items"; <br>.          model={items=[Item(id=1, itemName=itemA, price=10000, quantity=10), <br>                        Item(id=2, itemName=itemB, price=20000, quantity=20)<br>        ]
+
+
+
+##### 필터와 인터셉터의 비교
+
+필터는 doFilter만으로 dispatcherServlet실행 전 으로만 사용가능하지만<br>인터셉터는 SpringMvc에서 나온 기능으로 DispatcherServlet실행 후 동작하기때문에 아래처럼 상세하게 설정 가능하다.<br> - preHandle handlerAdaptor 호출 전<br> - postHandle handlerAdaptor 호출 후<br> - afterCompletion handlerAdaptor, View까지 렌더링 되고 난후
+
+또한, interceptor와 Filter를 설정한 내용을 보면 
+
+interceptor는 WebMvcConfigurer을 이용하여 상속받은 addInterceptors메소드를 통해<br> **excludePathPatterns**으로 제외 url도 설정 가능하다. 
+
+또한 Filter보다 소스도 간결하다
+
+```java
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import javax.servlet.Filter;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new LogInterceptor())
+                .order(1)
+                .addPathPatterns("/**")
+                .excludePathPatterns("/css/**", "/*.ico", "/error");
+
+        registry.addInterceptor(new LoginInterceptor())
+                .order(2)
+                .addPathPatterns("/**") // 모든 경로를 허용하지만, 
+          															// excludePathPatterns로 아래 경로는 제외
+                .excludePathPatterns("/", "/members/add", "/login", "/logout"
+                                    , "/css/**", "/*.ico", "/error");
+                // interceptor는 패턴을
+                // 상세하게 할 수 있다.
+    }
+
+    // 스프링 컨테이너에 해당 Filter를 등록해준다.
+    @Bean
+    public FilterRegistrationBean logFilter(){
+        FilterRegistrationBean<Filter> filterFilterRegistrationBean = new FilterRegistrationBean<>();
+        filterFilterRegistrationBean.setFilter(new LogFilter()); // Filter등록
+        filterFilterRegistrationBean.setOrder(1); // 순서 정의[작을수론 먼저 호출됨]
+        filterFilterRegistrationBean.addUrlPatterns("/*"); // 요청 URL
+        return filterFilterRegistrationBean;
+    }
+
+    @Bean
+    public FilterRegistrationBean loginCheckFilter(){
+        FilterRegistrationBean<Filter> filterFilterRegistrationBean = new FilterRegistrationBean<>();
+        filterFilterRegistrationBean.setFilter(new LoginCheckFilter());
+        filterFilterRegistrationBean.setOrder(2);
+        filterFilterRegistrationBean.addUrlPatterns("/*"); // 화이트리스트 넣어주었기에 그냥 들어감
+        return filterFilterRegistrationBean;
+    }
+}
+```
+
+
+
+------
+
+
+
+## @Login ArgumentResolver 만들기
+
+
+
+<img width="1671" alt="image-20220424140239938" src="https://user-images.githubusercontent.com/58017318/164966646-b1e2cb47-d888-4ead-8029-9061237038bd.png">
+
+
+
+```java
+HomeController
+  - @Login Member member
+  @Interface Login
+  - @Target(ElementType.PARAMETER) 
+  - @Retention(RetentionPolicy.RUNTIME)
+
+LoginMemberArgumentResolver implements HandlerMethodArgumentResolver
+  - supportsParameter
+  - parameter.hasParameterAnnotation(Login.class);
+  - Member.class.isAssignableFrom(parameter.getParameterType());
+  - resolveArgument
+
+WebMvcConfigurer
+  @Override
+  public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+  resolvers.add(new LoginMemberArgumentResolver());
+}
+```
+
+
