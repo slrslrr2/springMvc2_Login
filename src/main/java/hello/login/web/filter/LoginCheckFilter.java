@@ -54,7 +54,7 @@ public class LoginCheckFilter implements Filter {
         } finally {
             log.info("인증 체크 필터 종료 {}", requestURI);
         }
-        System.out.println("실행");
+//        System.out.println("실행");
         // try안에서 49라인 return 된 경우, 아래 sout은 안찍히고 finally까지만 실행된다.
     }
 
