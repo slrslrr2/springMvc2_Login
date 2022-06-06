@@ -86,3 +86,4 @@ ServletContainer에서 DispatcherServlet만 등록해놓고, HandlerMapping을 �
 
 
 > 출처: https://jeong-pro.tistory.com/222 [기본기를 쌓는 정아마추어 코딩블로그:티스토리]
+> https://jypthemiracle.medium.com/servletcontainer%EC%99%80-springcontainer%EB%8A%94-%EB%AC%B4%EC%97%87%EC%9D%B4-%EB%8B%A4%EB%A5%B8%EA%B0%80-626d27a80fe5
